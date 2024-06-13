@@ -50,10 +50,14 @@ import net.minecraftforge.event.entity.player.ItemFishedEvent;
 import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.network.NetworkHooks;
 import net.minecraftforge.network.PlayMessages;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.FishHook;
+import org.bukkit.event.player.PlayerFishEvent;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
 
 public class AquaFishingBobberEntity extends FishingHook implements IEntityAdditionalSpawnData {
@@ -63,6 +67,8 @@ public class AquaFishingBobberEntity extends FishingHook implements IEntityAddit
     private final ItemStack bobber;
     private final ItemStack fishingRod;
     private final int luck;
+
+    private static boolean suppressed = false;
 
     public AquaFishingBobberEntity(PlayMessages.SpawnEntity spawnPacket, Level world) {
         super(world.getPlayerByUUID(spawnPacket.getAdditionalData().readUUID()), world, 0, 0);
@@ -166,6 +172,18 @@ public class AquaFishingBobberEntity extends FishingHook implements IEntityAddit
                         return event.getRodDamage();
                     }
                     CriteriaTriggers.FISHING_ROD_HOOKED.trigger((ServerPlayer) angler, stack, this, lootEntries);
+
+                    try {
+                        org.bukkit.entity.Player player = Bukkit.getPlayer(Objects.requireNonNull(getPlayerOwner()).getUUID());
+                        assert player != null;
+                        PlayerFishEvent fishEvent = new PlayerFishEvent(player, null, null, PlayerFishEvent.State.CAUGHT_FISH);
+                        Bukkit.getPluginManager().callEvent(fishEvent);
+                    } catch (Throwable e) {
+                        if (!suppressed) {
+                            System.err.printf("플레이어 %s 의 낚시 이벤트 실행을 실패했습니다.%n", getPlayerOwner());
+                            suppressed = true;
+                        }
+                    }
 
                     this.spawnLoot(angler, lootEntries);
                     if (this.hasHook() && this.hook.getDoubleCatchChance() > 0) {
