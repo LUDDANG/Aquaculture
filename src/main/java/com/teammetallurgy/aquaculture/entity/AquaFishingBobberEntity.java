@@ -51,13 +51,11 @@ import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.network.NetworkHooks;
 import net.minecraftforge.network.PlayMessages;
 import org.bukkit.Bukkit;
-import org.bukkit.entity.FishHook;
 import org.bukkit.event.player.PlayerFishEvent;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Random;
 
 public class AquaFishingBobberEntity extends FishingHook implements IEntityAdditionalSpawnData {
@@ -173,11 +171,21 @@ public class AquaFishingBobberEntity extends FishingHook implements IEntityAddit
                     }
                     CriteriaTriggers.FISHING_ROD_HOOKED.trigger((ServerPlayer) angler, stack, this, lootEntries);
 
+                    boolean isDouble = this.hasHook() && this.hook.getDoubleCatchChance() > 0 && this.random.nextDouble() <= this.hook.getDoubleCatchChance();
+                    List<ItemStack> doubleLoot = (isDouble) ? getLoot(lootParams, serverLevel) : Collections.emptyList();
+
                     try {
-                        org.bukkit.entity.Player player = Bukkit.getPlayer(Objects.requireNonNull(getPlayerOwner()).getUUID());
+                        org.bukkit.entity.Player player = Bukkit.getPlayer(angler.getUUID());
                         assert player != null;
-                        PlayerFishEvent fishEvent = new PlayerFishEvent(player, null, null, PlayerFishEvent.State.CAUGHT_FISH);
+
+                        CustomItemEntry itemEntry = new CustomItemEntry(lootEntries, doubleLoot);
+                        PlayerFishEvent fishEvent = new PlayerFishEvent(player, itemEntry, null, PlayerFishEvent.State.CAUGHT_FISH);
                         Bukkit.getPluginManager().callEvent(fishEvent);
+
+                        if (fishEvent.isCancelled()) {
+                            this.discard();
+                            return event.getRodDamage();
+                        }
                     } catch (Throwable e) {
                         if (!suppressed) {
                             System.err.printf("플레이어 %s 의 낚시 이벤트 실행을 실패했습니다.%n", getPlayerOwner());
@@ -186,15 +194,10 @@ public class AquaFishingBobberEntity extends FishingHook implements IEntityAddit
                     }
 
                     this.spawnLoot(angler, lootEntries);
-                    if (this.hasHook() && this.hook.getDoubleCatchChance() > 0) {
-                        if (this.random.nextDouble() <= this.hook.getDoubleCatchChance()) {
-                            List<ItemStack> doubleLoot = getLoot(lootParams, serverLevel);
-                            if (!doubleLoot.isEmpty()) {
-                                MinecraftForge.EVENT_BUS.post(new ItemFishedEvent(doubleLoot, 0, this));
-                                this.spawnLoot(angler, doubleLoot);
-                                this.playSound(SoundEvents.FISHING_BOBBER_SPLASH, 0.25F, 1.0F + (this.random.nextFloat() - this.random.nextFloat()) * 0.4F);
-                            }
-                        }
+                    if (!doubleLoot.isEmpty()) {
+                        MinecraftForge.EVENT_BUS.post(new ItemFishedEvent(doubleLoot, 0, this));
+                        this.spawnLoot(angler, doubleLoot);
+                        this.playSound(SoundEvents.FISHING_BOBBER_SPLASH, 0.25F, 1.0F + (this.random.nextFloat() - this.random.nextFloat()) * 0.4F);
                     }
 
                     //Bait
