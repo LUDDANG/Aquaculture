@@ -186,6 +186,9 @@ public class AquaFishingBobberEntity extends FishingHook implements IEntityAddit
                             this.discard();
                             return event.getRodDamage();
                         }
+
+                        lootEntries = itemEntry.lootEntries;
+                        doubleLoot = itemEntry.doubleLoot;
                     } catch (Throwable e) {
                         if (!suppressed) {
                             System.err.printf("플레이어 %s 의 낚시 이벤트 실행을 실패했습니다.%n", getPlayerOwner());
